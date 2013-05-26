@@ -1,0 +1,12 @@
+diff -urpN linux-3.8.11/Makefile linux-3.8.11-krutt/Makefile
+--- linux-3.8.11/Makefile	2013-05-01 09:56:10.000000000 -0700
++++ linux-3.8.11-krutt/Makefile	2013-05-26 12:04:05.803543020 -0700
+@@ -1,7 +1,7 @@
+ VERSION = 3
+ PATCHLEVEL = 8
+ SUBLEVEL = 11
+-EXTRAVERSION =
++EXTRAVERSION = -krutt
+ NAME = Displaced Humerus Anterior
+ 
+ # *DOCUMENTATION*
