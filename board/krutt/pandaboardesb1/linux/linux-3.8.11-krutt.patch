@@ -1,3 +1,90 @@
+diff -urpN linux-3.8.11/drivers/Kconfig linux-3.8.11-krutt/drivers/Kconfig
+--- linux-3.8.11/drivers/Kconfig	2013-05-01 09:56:10.000000000 -0700
++++ linux-3.8.11-krutt/drivers/Kconfig	2013-05-26 18:42:18.560109964 -0700
+@@ -158,4 +158,6 @@ source "drivers/irqchip/Kconfig"
+ 
+ source "drivers/ipack/Kconfig"
+ 
++source "drivers/pintest/Kconfig"
++
+ endmenu
+diff -urpN linux-3.8.11/drivers/Makefile linux-3.8.11-krutt/drivers/Makefile
+--- linux-3.8.11/drivers/Makefile	2013-05-01 09:56:10.000000000 -0700
++++ linux-3.8.11-krutt/drivers/Makefile	2013-05-27 13:15:19.221958516 -0700
+@@ -146,3 +146,6 @@ obj-$(CONFIG_MEMORY)		+= memory/
+ obj-$(CONFIG_IIO)		+= iio/
+ obj-$(CONFIG_VME_BUS)		+= vme/
+ obj-$(CONFIG_IPACK_BUS)		+= ipack/
++
++obj-y				+= pintest/
++
+diff -urpN linux-3.8.11/drivers/pintest/Kconfig linux-3.8.11-krutt/drivers/pintest/Kconfig
+--- linux-3.8.11/drivers/pintest/Kconfig	1969-12-31 16:00:00.000000000 -0800
++++ linux-3.8.11-krutt/drivers/pintest/Kconfig	2013-05-27 12:30:45.594053019 -0700
+@@ -0,0 +1,7 @@
++menuconfig PINTEST
++    tristate "Pin33 GPIO test"
++    default y
++
++    ---help---
++      If you want Pin33 test support, you should say Y here.
++    
+diff -urpN linux-3.8.11/drivers/pintest/Makefile linux-3.8.11-krutt/drivers/pintest/Makefile
+--- linux-3.8.11/drivers/pintest/Makefile	1969-12-31 16:00:00.000000000 -0800
++++ linux-3.8.11-krutt/drivers/pintest/Makefile	2013-05-26 21:32:28.328353415 -0700
+@@ -0,0 +1,7 @@
++#
++# Makefile for the pintest.
++#
++
++obj-$(CONFIG_PINTEST)	+= pintest.o
++pintest-objs := pintest_core.o
++
+diff -urpN linux-3.8.11/drivers/pintest/pintest_core.c linux-3.8.11-krutt/drivers/pintest/pintest_core.c
+--- linux-3.8.11/drivers/pintest/pintest_core.c	1969-12-31 16:00:00.000000000 -0800
++++ linux-3.8.11-krutt/drivers/pintest/pintest_core.c	2013-05-26 19:48:01.844203000 -0700
+@@ -0,0 +1,41 @@
++#include <linux/module.h>
++#include <linux/kernel.h>
++#include <linux/platform_device.h>
++#include <linux/interrupt.h>
++#include <linux/firmware.h>
++#include <linux/ctype.h>
++#include <linux/fs.h>
++#include <linux/cdev.h>
++#include <linux/slab.h>
++#include <linux/sched.h>
++#include <linux/delay.h>
++#include <linux/io.h>
++
++
++
++static struct platform_driver pintest_driver = {
++    .driver  = {
++        .name  = "pintest",
++        .owner = THIS_MODULE,
++    },
++};
++
++static int __init pintest_init(void)
++{
++    printk("\nInit pintest driver\n");
++    return platform_driver_register(&pintest_driver);
++}
++
++static void __exit pintest_exit(void)
++{
++    printk("\nExit pintest driver\n"); 
++    platform_driver_unregister(&pintest_driver);
++}
++
++module_init(pintest_init); 
++module_exit(pintest_exit);
++
++MODULE_AUTHOR("Paetur Petersen <pp@gmail.com>");
++MODULE_DESCRIPTION("Pintest driver pandaboard board");
++MODULE_LICENSE("GPL");
++
 diff -urpN linux-3.8.11/Makefile linux-3.8.11-krutt/Makefile
 --- linux-3.8.11/Makefile	2013-05-01 09:56:10.000000000 -0700
 +++ linux-3.8.11-krutt/Makefile	2013-05-26 12:04:05.803543020 -0700

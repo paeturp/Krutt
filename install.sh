@@ -28,9 +28,9 @@ function reinstall()
 
     # Copy board into buildroot
     cd ${HERE}
-    tar --exclude=.svn -cf - configs/ | (cd ../${BR}; tar -xvf -) 
-    tar --exclude=.svn -cf - board/   | (cd ../${BR}; tar -xvf -) 
-    tar --exclude=.svn -cf - package/ | (cd ../${BR}; tar -xvf -)
+    tar --exclude=.git -cf - configs/ | (cd ../${BR}; tar -xvf -) 
+    tar --exclude=.git -cf - board/   | (cd ../${BR}; tar -xvf -) 
+    tar --exclude=.git -cf - package/ | (cd ../${BR}; tar -xvf -)
    
     # Add new package into the buildroot menu
     local bname="Krutt"
