@@ -1,3 +1,25 @@
+diff -urpN linux-3.8.11/arch/arm/mach-omap2/board-omap4panda.c linux-3.8.11-krutt/arch/arm/mach-omap2/board-omap4panda.c
+--- linux-3.8.11/arch/arm/mach-omap2/board-omap4panda.c	2013-05-01 09:56:10.000000000 -0700
++++ linux-3.8.11-krutt/arch/arm/mach-omap2/board-omap4panda.c	2013-05-27 17:49:02.957378701 -0700
+@@ -306,12 +306,18 @@ static int __init omap4_panda_i2c_init(v
+ 	return 0;
+ }
+ 
++
+ #ifdef CONFIG_OMAP_MUX
+ static struct omap_board_mux board_mux[] __initdata = {
+ 	/* WLAN IRQ - GPIO 53 */
+ 	OMAP4_MUX(GPMC_NCS3, OMAP_MUX_MODE3 | OMAP_PIN_INPUT),
+ 	/* WLAN POWER ENABLE - GPIO 43 */
+ 	OMAP4_MUX(GPMC_A19, OMAP_MUX_MODE3 | OMAP_PIN_OUTPUT),
++
++#if 0
++    OMAP4_MUX(GPMC_AD9, OMAP_MUX_MODE3 | OMAP_PIN_OUTPUT),
++#endif
++
+ 	/* WLAN SDIO: MMC5 CMD */
+ 	OMAP4_MUX(SDMMC5_CMD, OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLUP),
+ 	/* WLAN SDIO: MMC5 CLK */
 diff -urpN linux-3.8.11/drivers/Kconfig linux-3.8.11-krutt/drivers/Kconfig
 --- linux-3.8.11/drivers/Kconfig	2013-05-01 09:56:10.000000000 -0700
 +++ linux-3.8.11-krutt/drivers/Kconfig	2013-05-26 18:42:18.560109964 -0700
@@ -42,48 +64,375 @@ diff -urpN linux-3.8.11/drivers/pintest/Makefile linux-3.8.11-krutt/drivers/pint
 +
 diff -urpN linux-3.8.11/drivers/pintest/pintest_core.c linux-3.8.11-krutt/drivers/pintest/pintest_core.c
 --- linux-3.8.11/drivers/pintest/pintest_core.c	1969-12-31 16:00:00.000000000 -0800
-+++ linux-3.8.11-krutt/drivers/pintest/pintest_core.c	2013-05-26 19:48:01.844203000 -0700
-@@ -0,0 +1,41 @@
-+#include <linux/module.h>
-+#include <linux/kernel.h>
-+#include <linux/platform_device.h>
-+#include <linux/interrupt.h>
-+#include <linux/firmware.h>
-+#include <linux/ctype.h>
-+#include <linux/fs.h>
++++ linux-3.8.11-krutt/drivers/pintest/pintest_core.c	2013-05-27 18:36:05.357279042 -0700
+@@ -0,0 +1,336 @@
 +#include <linux/cdev.h>
-+#include <linux/slab.h>
-+#include <linux/sched.h>
-+#include <linux/delay.h>
-+#include <linux/io.h>
++#include <linux/init.h>
++#include <linux/module.h>
++#include <linux/platform_device.h>
++#include <linux/kernel.h>    /* printk() */
++#include <linux/slab.h>      /* kmalloc() */
++#include <linux/fs.h>        /* everything... */
++#include <linux/errno.h>     /* error codes */
++#include <linux/types.h>     /* size_t */
++#include <linux/proc_fs.h>
++#include <linux/fcntl.h>      /* O_ACCMODE */
++#include <asm/system.h>       /* cli(), *_flags */
++#include <asm/uaccess.h>      /* copy_from/to_user */
++#include <linux/input.h>      /* Input device driver */
++#include <linux/interrupt.h>  /* Interrupt handling */
++#include <linux/timer.h>      /* timer */
++#include <linux/gpio.h>
++#include <linux/platform_data/gpio-omap.h>
++
++#include "pintest.h"
++
++
++#define   VERSION        "1.00"
++
++#define   DEVICE_NAME    "pintest"
++
++#define   GPIO_PIN33     (33)  /* pin 33 (connector pin number 20) J6 on the pandaboard */
++#define   OUTPUT         (0)
++#define   PULLUP         (0)
++
++
++static int Major = 0;                     /* Major number assigned to our device driver */
++static int DeviceOpen = 0;	          /* Is device open?  */
++
++struct cdev *pin33_cdev;                   /* cdev struct */
++static dev_t pin33_dev_number;             /* Device number */
++static unsigned char state_pin;
++static unsigned char timer_flag; 
++static struct timer_list my_timer;
 +
 +
 +
-+static struct platform_driver pintest_driver = {
-+    .driver  = {
-+        .name  = "pintest",
-+        .owner = THIS_MODULE,
-+    },
++#define MDELAY    (1000) /* mSecs */
++
++
++void SetGpioValue(unsigned int pin, unsigned long state_pin)
++{
++
++}
++
++int SetGpioPull(unsigned int pin, unsigned int pullup)
++{
++    return 0;
++}
++
++int SetGpioDirection(unsigned int pin, unsigned int direction)
++{
++
++    return 0;
++}
++
++void SetNextTimer(void)
++{ 
++    /* Setup timer interval (msecs) */
++    mod_timer(&my_timer, jiffies + msecs_to_jiffies(MDELAY));
++}
++
++void my_timer_callback( unsigned long data )
++{
++    if (timer_flag != 0)
++    {
++        state_pin ^= 0x01;
++        state_pin &= 0x01;
++
++        SetGpioValue(GPIO_PIN33, state_pin); 
++
++        SetNextTimer(); 
++    }
++}
++
++static int pin33_open(struct inode *inode, struct file *fp)
++{
++    if (DeviceOpen)
++    {
++        return -EBUSY;
++    }
++
++    DeviceOpen++;
++
++    printk(KERN_INFO "Open()\n"); 
++
++    return 0;
++}
++
++static int pin33_release(struct inode *inode, struct file *fp)
++{
++    DeviceOpen--;
++
++    printk(KERN_INFO "Close()\n"); 
++
++    return 0;
++}
++
++/**
++ *  Read the status of the clk_PB30 pin and returns it to the user.
++ */
++static int GetPin33State(unsigned long arg)
++{
++    struct pin33_ioctl data;
++
++    if (copy_from_user(&data, (void __user *)arg, sizeof(data)))
++    {
++        printk(KERN_ERR "Error copying data from user\n");
++        return -EFAULT;
++    }
++
++    data.val = (unsigned long)state_pin;
++
++    if (copy_to_user((void __user *)arg, &data, sizeof(data))) 
++    {
++        printk(KERN_ERR "Error copying data to user\n");
++        return -ENOTTY;
++    }
++
++    return 0;
++}
++
++/**
++ *  Set the command.
++ */
++static int TimerTest(unsigned long arg)
++{
++    struct pin33_ioctl data;
++
++    if (copy_from_user(&data, (void __user *)arg, sizeof(data)))
++    {
++        printk(KERN_ERR "Error copying data from user\n");
++        return -EFAULT;
++    }
++
++    switch(data.command)
++    {
++        case CMD_TIMER_OFF:
++           state_pin = 0x00;
++           timer_flag = 0; 
++           break;
++
++        case CMD_TIMER_ON:
++           state_pin = 0x01;
++           timer_flag = 1;
++           SetNextTimer(); 
++           break; 
++
++        default:
++           state_pin = 0x00;    
++           timer_flag = 0; 
++    } 
++
++    return 0;
++}
++
++/**
++ *  Set IO pin high or low.
++ */
++static int SetPin33(unsigned long arg)
++{
++    struct pin33_ioctl data;
++
++    timer_flag = 0; /* Make sure timer does not get refreshed. */
++
++    if (copy_from_user(&data, (void __user *)arg, sizeof(data)))
++    {
++        printk(KERN_ERR "Error copying data from user\n");
++        return -EFAULT;
++    }
++
++    switch(data.command)
++    { 
++        case CMD_IOHIGH:
++           state_pin = 0x01;
++           break;
++
++        case CMD_IOLOW:
++           state_pin = 0x00;
++           break; 
++
++        default:
++           state_pin = 0x00;    
++    } 
++
++    SetGpioValue(GPIO_PIN33, state_pin); 
++
++    return 0;
++}
++
++static int pin33_ioctl(struct inode *ino, struct file *fp, unsigned int cmd, unsigned long arg)
++{
++    int errCode = 0;    /* no error */
++
++    /* Only works for minor 0 */
++    if (iminor(fp->f_dentry->d_inode) != 0)
++    {
++        return -ENOTTY;
++    }
++
++    if (_IOC_DIR(cmd) & _IOC_WRITE)
++    {
++        if (!access_ok(VERIFY_READ, (void __user *)arg, _IOC_SIZE(cmd)))
++        {
++            printk(KERN_ERR "Cannot access user argument\n");
++            return -EFAULT;
++        }
++    }
++
++    if (_IOC_DIR(cmd) & _IOC_READ)
++    {
++        if (!access_ok(VERIFY_WRITE, (void __user *)arg, _IOC_SIZE(cmd)))
++        {
++            printk(KERN_ERR "Cannot access user argument\n");
++            return -EFAULT;
++        }
++    }
++
++    switch(cmd)
++    {
++        case PIN33_READ1:
++            errCode = GetPin33State(arg);
++            break;
++
++        case PIN33_WRITE1:
++            errCode = TimerTest(arg);
++            break;
++
++        case PIN33_WRITE2:
++            errCode = SetPin33(arg);
++            break;
++
++        default:
++            printk(KERN_INFO "ERR: %s:%d - unknown unlocked_ioctl\n", __FUNCTION__, __LINE__);
++            return -EFAULT;
++    }
++
++    return errCode;
++}
++
++
++/* File operation structure */
++static struct file_operations pin33_fops = {
++    .owner             = THIS_MODULE,
++    .open              = pin33_open,    /* Open method */
++    .release           = pin33_release, /* Release method */
++    .unlocked_ioctl    = pin33_ioctl,   /* IOctl */
 +};
 +
-+static int __init pintest_init(void)
-+{
-+    printk("\nInit pintest driver\n");
-+    return platform_driver_register(&pintest_driver);
++static int __init pin33test_init(void)
++{ 
++    int result;
++    dev_t dev;
++
++    printk(KERN_INFO "pintest module loaded" VERSION "\n"); 
++
++    /* Request dynamic allocation of a device major number */ 
++    result = alloc_chrdev_region(&dev, 0, 1, DEVICE_NAME); 
++    if (result < 0)
++    {
++        return result;
++    } 
++   
++    Major = MAJOR(dev); 
++    dev = MKDEV(Major, 0); 
++
++    printk(KERN_INFO "device major number: %i\n", Major); 
++ 
++    /* Connect the file operations with the cdev */
++    pin33_cdev = cdev_alloc(); 
++    cdev_init(pin33_cdev, &pin33_fops);
++    pin33_cdev->owner = THIS_MODULE;
++
++    result = cdev_add( pin33_cdev, dev, 1);
++    if (result < 0) 
++    {
++        printk(KERN_ERR "Unable to add cdev.\n");
++        return result;
++    } 
++
++    /* Set periph for GPIO_PIN33 pin without internal pull up. */
++    if (SetGpioPull(GPIO_PIN33, PULLUP)) 
++    {
++        printk(KERN_ERR "Could not set periph for %i (GPIO_PIN33).\n", GPIO_PIN33);
++        return -EIO;
++    }
++
++    /* Set pin as GPIO output. */
++    if (SetGpioDirection(GPIO_PIN33, OUTPUT)) 
++    {
++        printk(KERN_ERR "Could not set pin %i for GPIO input (GPIO_PIN33).\n", GPIO_PIN33);
++        return -EIO;
++    }
++
++    state_pin = 0x00; 
++    timer_flag = 0; 
++
++    SetGpioValue(GPIO_PIN33, state_pin); 
++
++    /* Setup a timer to call my_timer_callback */
++    setup_timer(&my_timer, my_timer_callback, 0); 
++
++    return 0;
 +}
 +
-+static void __exit pintest_exit(void)
-+{
-+    printk("\nExit pintest driver\n"); 
-+    platform_driver_unregister(&pintest_driver);
++static void __exit pin33test_exit(void)
++{ 
++    printk(KERN_INFO "pin33test module unloaded.\n"); 
++
++    state_pin = 0x00; 
++    timer_flag = 0; 
++
++    /* remove kernel timer when unloading module */
++    del_timer(&my_timer);
++
++    SetGpioValue(GPIO_PIN33, 0); 
++
++    /* Remove the cdev */
++    cdev_del( pin33_cdev); 
++
++    /* Release the major number */ 
++    unregister_chrdev_region(MKDEV(Major, 0), 1);
 +}
 +
-+module_init(pintest_init); 
-+module_exit(pintest_exit);
++module_init(pin33test_init);
++module_exit(pin33test_exit);
 +
-+MODULE_AUTHOR("Paetur Petersen <pp@gmail.com>");
-+MODULE_DESCRIPTION("Pintest driver pandaboard board");
++MODULE_AUTHOR("Egil Rasmussen <erasmussen1@gmail.com>");
++MODULE_DESCRIPTION("pintest driver for pandaboard.");
 +MODULE_LICENSE("GPL");
++
+Binary files linux-3.8.11/drivers/pintest/.pintest_core.c.swp and linux-3.8.11-krutt/drivers/pintest/.pintest_core.c.swp differ
+diff -urpN linux-3.8.11/drivers/pintest/pintest.h linux-3.8.11-krutt/drivers/pintest/pintest.h
+--- linux-3.8.11/drivers/pintest/pintest.h	1969-12-31 16:00:00.000000000 -0800
++++ linux-3.8.11-krutt/drivers/pintest/pintest.h	2013-05-27 16:43:15.481518088 -0700
+@@ -0,0 +1,27 @@
++#ifndef __PINTEST_H__
++#define __PINTEST_H__
++
++#include <linux/ioctl.h>
++
++
++struct pin33_ioctl {
++    unsigned long command;
++    unsigned long val;
++};
++
++/*
++ * The IOCTL magic number was picked because it's not
++ * listed in Documentation/ioctl/ioctl-number.txt.
++ */
++#define PIN_IOC_MAGIC  0xcc
++#define PIN33_READ1      _IOWR(PIN_IOC_MAGIC, 1, struct pin33_ioctl)
++#define PIN33_WRITE1     _IOW(PIN_IOC_MAGIC,  2, struct pin33_ioctl)
++#define PIN33_WRITE2     _IOW(PIN_IOC_MAGIC,  3, struct pin33_ioctl)
++
++#define CMD_TIMER_OFF    (0)
++#define CMD_TIMER_ON     (1)
++#define CMD_IOHIGH       (2)
++#define CMD_IOLOW        (3)
++
++#endif
 +
 diff -urpN linux-3.8.11/Makefile linux-3.8.11-krutt/Makefile
 --- linux-3.8.11/Makefile	2013-05-01 09:56:10.000000000 -0700
