@@ -2,6 +2,7 @@
 #
 #
 #
+set -x
 VERSION="1.00.02"
 HERE=`pwd`
 BR="buildroot"
@@ -30,7 +31,7 @@ function reinstall()
     cd ${HERE}
     tar --exclude=.git -cf - configs/ | (cd ../${BR}; tar -xvf -) 
     tar --exclude=.git -cf - board/   | (cd ../${BR}; tar -xvf -) 
-    tar --exclude=.git -cf - package/ | (cd ../${BR}; tar -xvf -)
+    tar --exclude=.git --exclude=.gitkeep -cf - package/ | (cd ../${BR}; tar -xvf -)
    
     # Add new package into the buildroot menu
     local bname="Krutt"
