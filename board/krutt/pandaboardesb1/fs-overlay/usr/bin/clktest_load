@@ -1,0 +1,35 @@
+#!/bin/sh 
+# 
+# 
+
+KERNEL_VER=`uname -r`
+
+MODUL_PATH=/lib/modules/$KERNEL_VER/kernel/drivers/misc
+
+IsLoaded=`lsmod | grep pintest | wc -l`
+
+
+# Load pintest driver into kernel
+if [ $# -eq 0 ]
+then
+   if [ "$IsLoaded" == "0" ]
+   then 
+       insmod $MODUL_PATH/pintest.ko
+
+       major=`awk "/pintest/ {print \\$1}" /proc/devices`
+
+       if [ ! -c /dev/pintest ]
+       then
+           mknod /dev/pintest c $major 0
+       fi
+   fi
+fi
+
+# will unload the module (driver).
+if [ $# -eq 1 ]
+then
+   if [ "$IsLoaded" == "1" ]
+   then
+       rmmod pintest
+   fi
+fi
