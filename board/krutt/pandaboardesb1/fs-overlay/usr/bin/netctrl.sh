@@ -205,6 +205,8 @@ wifi_start()
 
         ifconfig -a
 
+        ifconfig wlan0 up 
+
         ip link set $device up 
 
         allocate_addresses $device 
@@ -229,7 +231,7 @@ wifi_stop()
 
 init()
 { 
-    mkdir -p $WORK_DIR/$DEVICE
+    mkdir -p /$WORK_DIR/$DEVICE
 }
 
 
