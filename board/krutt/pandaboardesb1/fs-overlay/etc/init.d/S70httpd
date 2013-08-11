@@ -1,0 +1,38 @@
+#!/bin/sh
+#
+#
+
+start() 
+{
+    echo -n "Starting httpd: "
+    start-stop-daemon -S -q --exec /usr/sbin/httpd
+    echo "OK"
+}
+
+stop() 
+{
+    echo -n "Stopping httpd: "
+    start-stop-daemon -K -q --exec /usr/sbin/httpd
+    echo "OK"
+}
+
+case "$1" in
+  start)
+    start
+    ;;
+
+  stop)
+    stop
+    ;;
+
+  restart|reload)
+    stop
+    start
+    ;;
+
+  *)
+    echo $"Usage: $0 {start|stop|restart}"
+    exit 1
+esac
+
+exit $?
