@@ -2,7 +2,8 @@
 #
 #
 #
-set -x
+# set -x
+
 VERSION="1.00.02"
 HERE=`pwd`
 BR="buildroot"
